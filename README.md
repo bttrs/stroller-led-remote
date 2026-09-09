@@ -1,8 +1,9 @@
 # Stroller LED Remote
 
-Initial PlatformIO firmware project for an ESP32-C3 SuperMini. It initializes
-two rotary encoders, six buttons, and one LED. Input handling is deliberately
-left as an inert skeleton for future expansion.
+Firmware for an ESP32-C3 SuperMini with two rotary encoders, six buttons, and
+one LED. Each debounced button or encoder-click press, and every completed
+encoder detent, turns the LED on for one second. Holding a switch generates
+only one press event; another event requires releasing it and pressing again.
 
 ## Hardware pins
 
@@ -30,8 +31,10 @@ the pins low during reset or boot.
 
 ## Layout
 
-- `src/` - firmware sources
-- `include/` - shared project headers
+- `src/main.cpp` - application setup and coordination
+- `src/controls.cpp`, `include/controls.h` - control initialization and
+  debounced button press events
+- `src/led.cpp`, `include/led.h` - LED timing and output behavior
 - `lib/` - project-specific libraries
 - `test/` - PlatformIO tests
 
