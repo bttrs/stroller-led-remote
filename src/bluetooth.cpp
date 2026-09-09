@@ -28,15 +28,42 @@ namespace
 {
 constexpr unsigned long reconnectIntervalMs = 5000;
 constexpr unsigned long connectionTimeoutMs = 5000;
+constexpr unsigned long commandIntervalMs = 15;
+constexpr uint8_t commandQueueSize = 16;
 
 NimBLEClient *client = nullptr;
 NimBLERemoteCharacteristic *commandCharacteristic = nullptr;
 NimBLERemoteCharacteristic *acknowledgementCharacteristic = nullptr;
 unsigned long nextConnectionAttemptAt = 0;
+unsigned long nextCommandTransmissionAt = 0;
+bool wasConnected = false;
+
+struct QueuedCommand
+{
+    const char *name;
+    uint8_t repeatCount;
+};
+
+QueuedCommand commandQueue[commandQueueSize];
+uint8_t commandQueueHead = 0;
+uint8_t commandQueueTail = 0;
+uint8_t commandQueueCount = 0;
 
 bool retryIsDue(unsigned long now)
 {
     return static_cast<long>(now - nextConnectionAttemptAt) >= 0;
+}
+
+bool commandTransmissionIsDue(unsigned long now)
+{
+    return static_cast<long>(now - nextCommandTransmissionAt) >= 0;
+}
+
+void clearCommandQueue()
+{
+    commandQueueHead = 0;
+    commandQueueTail = 0;
+    commandQueueCount = 0;
 }
 
 void logAcknowledgement(
@@ -124,14 +151,54 @@ bool sendCommand(const char *command)
         return false;
     }
 
-    if (!commandCharacteristic->writeValue(command, 0, true))
+    if (commandQueueCount > 0)
     {
-        Serial.printf("Bluetooth command %s was not acknowledged\n", command);
+        const uint8_t previousIndex =
+            commandQueueTail == 0 ? commandQueueSize - 1 : commandQueueTail - 1;
+        QueuedCommand &previousCommand = commandQueue[previousIndex];
+        if (strcmp(previousCommand.name, command) == 0 &&
+            previousCommand.repeatCount < UINT8_MAX)
+        {
+            ++previousCommand.repeatCount;
+            return true;
+        }
+    }
+
+    if (commandQueueCount == commandQueueSize)
+    {
+        Serial.printf("Bluetooth command %s dropped: queue is full\n", command);
         return false;
     }
 
-    Serial.printf("Bluetooth command sent: %s\n", command);
+    commandQueue[commandQueueTail] = {command, 1};
+    commandQueueTail = (commandQueueTail + 1) % commandQueueSize;
+    ++commandQueueCount;
     return true;
+}
+
+void transmitNextCommand(unsigned long now)
+{
+    if (commandQueueCount == 0 || !commandTransmissionIsDue(now))
+    {
+        return;
+    }
+
+    QueuedCommand &command = commandQueue[commandQueueHead];
+    if (!commandCharacteristic->writeValue(command.name, 0, false))
+    {
+        Serial.printf("Bluetooth command %s could not be sent\n", command.name);
+        nextCommandTransmissionAt = now + commandIntervalMs;
+        return;
+    }
+
+    Serial.printf("Bluetooth command sent: %s\n", command.name);
+    if (--command.repeatCount == 0)
+    {
+        commandQueueHead = (commandQueueHead + 1) % commandQueueSize;
+        --commandQueueCount;
+    }
+
+    nextCommandTransmissionAt = now + commandIntervalMs;
 }
 } // namespace
 
@@ -142,18 +209,35 @@ void Bluetooth::initialize()
     const NimBLEAddress targetAddress(
         std::string(BLUETOOTH_TARGET_ADDRESS), BLUETOOTH_TARGET_ADDRESS_TYPE);
     client = NimBLEDevice::createClient(targetAddress);
+    client->setConnectionParams(6, 12, 0, 200);
     client->setConnectTimeout(connectionTimeoutMs);
     nextConnectionAttemptAt = millis();
 }
 
 void Bluetooth::update()
 {
-    if (client == nullptr || client->isConnected())
+    if (client == nullptr)
     {
         return;
     }
 
     const unsigned long now = millis();
+    if (client->isConnected())
+    {
+        wasConnected = true;
+        transmitNextCommand(now);
+        return;
+    }
+
+    if (wasConnected)
+    {
+        Serial.printf("Bluetooth connection lost; clearing pending commands\n");
+        commandCharacteristic = nullptr;
+        acknowledgementCharacteristic = nullptr;
+        clearCommandQueue();
+        wasConnected = false;
+    }
+
     if (!retryIsDue(now))
     {
         return;

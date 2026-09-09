@@ -42,7 +42,10 @@ the pins low during reset or boot.
   address rather than the default public address. The client writes
   hyphenated command names to `FF00`/`FF01` by default and logs received
   acknowledgement notifications; configure the command and acknowledgement
-  GATT UUIDs with the corresponding `BLUETOOTH_*_UUID` build macros.
+  GATT UUIDs with the corresponding `BLUETOOTH_*_UUID` build macros. Commands
+  are queued, adjacent identical commands are coalesced, and transmitted
+  without waiting for a GATT write response every 15 ms; acknowledgement
+  notifications are still logged.
 - `lib/` - project-specific libraries
 - `test/` - PlatformIO tests
 
