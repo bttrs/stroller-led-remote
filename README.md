@@ -35,6 +35,14 @@ the pins low during reset or boot.
 - `src/controls.cpp`, `include/controls.h` - control initialization and
   debounced button press events
 - `src/led.cpp`, `include/led.h` - LED timing and output behavior
+- `src/bluetooth.cpp`, `include/bluetooth.h` - dormant BLE client that
+  reconnects to `BLUETOOTH_TARGET_ADDRESS` when its `initialize()` and
+  `update()` functions are later integrated. Set that build macro to the
+  target MAC address; use `BLUETOOTH_TARGET_ADDRESS_TYPE` if it has a random
+  address rather than the default public address. The client writes
+  hyphenated command names to `FF00`/`FF01` by default and logs received
+  acknowledgement notifications; configure the command and acknowledgement
+  GATT UUIDs with the corresponding `BLUETOOTH_*_UUID` build macros.
 - `lib/` - project-specific libraries
 - `test/` - PlatformIO tests
 
