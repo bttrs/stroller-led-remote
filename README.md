@@ -15,9 +15,9 @@ connect the GPIO pin to ground when pressed.
 | Encoder 1 | CLK | 3 |
 | Encoder 1 | DT | 0 |
 | Encoder 1 | SW | 1 |
-| Encoder 2 | A | 4 |
-| Encoder 2 | B | 5 |
-| Encoder 2 | Click | 6 |
+| Encoder 2 | CLK | 6 |
+| Encoder 2 | DT | 4 |
+| Encoder 2 | SW | 5 |
 | LED | Signal | 10 |
 | Button 1 | | 7 |
 | Button 2 | | 20 |

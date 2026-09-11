@@ -3,7 +3,7 @@
 #include <Encoder.h>
 #include <EncoderAdapter/PjrcEncoderAdapter.h>
 #include <EventButton.h>
-#include <EventEncoderButton.h>
+#include <EventEncoder.h>
 
 #include "controls.h"
 
@@ -22,17 +22,21 @@ constexpr uint8_t actionQueueSize = 16;
 constexpr uint8_t encoder1A = 3;
 constexpr uint8_t encoder1B = 0;
 constexpr uint8_t encoder1Click = 1;
-constexpr uint8_t encoder2A = 4;
-constexpr uint8_t encoder2B = 5;
-constexpr uint8_t encoder2Click = 6;
+constexpr uint8_t encoder2A = 6;
+constexpr uint8_t encoder2B = 4;
+constexpr uint8_t encoder2Click = 5;
 
 PjrcEncoderAdapter encoderAdapters[] = {
     {encoder1A, encoder1B},
     {encoder2A, encoder2B},
 };
-EventEncoderButton encoderInputs[] = {
-    {&encoderAdapters[0], encoder1Click},
-    {&encoderAdapters[1], encoder2Click},
+EventEncoder encoderInputs[] = {
+    {&encoderAdapters[0]},
+    {&encoderAdapters[1]},
+};
+EventButton encoderClickInputs[] = {
+    {encoder1Click},
+    {encoder2Click},
 };
 EventButton buttonInputs[] = {
     {buttonPins[0]},
@@ -75,17 +79,23 @@ void onButtonEvent(InputEventType event, EventButton &button)
     }
 }
 
-void onEncoderEvent(InputEventType event, EventEncoderButton &encoder)
+void onEncoderEvent(InputEventType event, EventEncoder &encoder)
 {
-    const size_t index = encoder.getInputId();
-    if (event == InputEventType::CHANGED)
+    if (event != InputEventType::CHANGED)
     {
-        const char *direction = encoder.increment() > 0 ? "clockwise" : "counterclockwise";
-        Serial.printf("Rotary encoder %u rotated %s\n", index + 1, direction);
+        return;
     }
-    else if (event == InputEventType::CLICKED)
+
+    const size_t index = encoder.getInputId();
+    const char *direction = encoder.increment() > 0 ? "clockwise" : "counterclockwise";
+    Serial.printf("Rotary encoder %u rotated %s\n", index + 1, direction);
+}
+
+void onEncoderClickEvent(InputEventType event, EventButton &button)
+{
+    if (event == InputEventType::PRESSED)
     {
-        Serial.printf("Rotary encoder %u clicked\n", index + 1);
+        Serial.printf("Rotary encoder %u clicked\n", button.getInputId() + 1);
     }
 }
 } // namespace
@@ -103,17 +113,26 @@ void Controls::initialize()
     for (size_t index = 0; index < sizeof(encoderInputs) / sizeof(encoderInputs[0]); ++index)
     {
         encoderInputs[index].setInputId(index);
-        encoderInputs[index].setDebounceInterval(30);
         encoderInputs[index].begin();
         encoderInputs[index].setCallback(onEncoderEvent);
+
+        encoderClickInputs[index].setInputId(index);
+        encoderClickInputs[index].setDebounceInterval(30);
+        encoderClickInputs[index].begin();
+        encoderClickInputs[index].setCallback(onEncoderClickEvent);
     }
 }
 
 bool Controls::pollAction(Action &action)
 {
-    for (EventEncoderButton &encoder : encoderInputs)
+    for (EventEncoder &encoder : encoderInputs)
     {
         encoder.update();
+    }
+
+    for (EventButton &encoderClick : encoderClickInputs)
+    {
+        encoderClick.update();
     }
 
     for (EventButton &button : buttonInputs)
