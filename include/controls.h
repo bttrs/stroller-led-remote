@@ -17,6 +17,6 @@ enum class Action
 
 void initialize();
 
-// Returns one queued button, encoder-click, or encoder-detent action.
+// Returns one queued button action.
 bool pollAction(Action &action);
 } // namespace Controls

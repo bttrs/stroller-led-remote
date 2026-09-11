@@ -1,18 +1,15 @@
 #include <Arduino.h>
 
+#include <Encoder.h>
+#include <EncoderAdapter/PjrcEncoderAdapter.h>
+#include <EventButton.h>
+#include <EventEncoderButton.h>
+
 #include "controls.h"
 
 namespace
 {
-constexpr uint8_t encoder1A = 0;
-constexpr uint8_t encoder1B = 1;
-constexpr uint8_t encoder1Click = 3;
-
-constexpr uint8_t encoder2A = 4;
-constexpr uint8_t encoder2B = 5;
-constexpr uint8_t encoder2Click = 6;
-
-constexpr uint8_t switches[] = {7, 20, 21, 2, 8, 9};
+constexpr uint8_t buttonPins[] = {7, 20, 21, 2, 8, 9};
 constexpr Controls::Action switchActions[] = {
     Controls::Action::BlinkerLeft,
     Controls::Action::HazardLights,
@@ -21,36 +18,30 @@ constexpr Controls::Action switchActions[] = {
     Controls::Action::TurnOff,
     Controls::Action::NextPattern,
 };
-constexpr unsigned long debounceDurationMs = 30;
 constexpr uint8_t actionQueueSize = 16;
+constexpr uint8_t encoder1A = 3;
+constexpr uint8_t encoder1B = 0;
+constexpr uint8_t encoder1Click = 1;
+constexpr uint8_t encoder2A = 4;
+constexpr uint8_t encoder2B = 5;
+constexpr uint8_t encoder2Click = 6;
 
-struct RotaryEncoderPins
-{
-    uint8_t a;
-    uint8_t b;
-    uint8_t click;
+PjrcEncoderAdapter encoderAdapters[] = {
+    {encoder1A, encoder1B},
+    {encoder2A, encoder2B},
 };
-
-constexpr RotaryEncoderPins encoders[] = {
-    {encoder1A, encoder1B, encoder1Click},
-    {encoder2A, encoder2B, encoder2Click},
+EventEncoderButton encoderInputs[] = {
+    {&encoderAdapters[0], encoder1Click},
+    {&encoderAdapters[1], encoder2Click},
 };
-struct ButtonState
-{
-    bool rawPressed;
-    bool pressed;
-    unsigned long rawStateChangedAt;
+EventButton buttonInputs[] = {
+    {buttonPins[0]},
+    {buttonPins[1]},
+    {buttonPins[2]},
+    {buttonPins[3]},
+    {buttonPins[4]},
+    {buttonPins[5]},
 };
-
-struct EncoderState
-{
-    uint8_t previousPosition;
-    int8_t transitionCount;
-};
-
-ButtonState switchStates[sizeof(switches) / sizeof(switches[0])];
-ButtonState encoderClickStates[sizeof(encoders) / sizeof(encoders[0])];
-EncoderState encoderStates[sizeof(encoders) / sizeof(encoders[0])];
 Controls::Action actionQueue[actionQueueSize];
 uint8_t actionQueueHead = 0;
 uint8_t actionQueueTail = 0;
@@ -70,67 +61,29 @@ bool queueAction(Controls::Action action)
     return true;
 }
 
-uint8_t readEncoderPosition(const RotaryEncoderPins &encoder)
+void onButtonEvent(InputEventType event, EventButton &button)
 {
-    return (digitalRead(encoder.a) == HIGH ? 0b10 : 0) |
-           (digitalRead(encoder.b) == HIGH ? 0b01 : 0);
+    if (event != InputEventType::PRESSED)
+    {
+        return;
+    }
+
+    const size_t index = button.getInputId();
+    if (queueAction(switchActions[index]))
+    {
+        Serial.printf("Button %u clicked\n", index + 1);
+    }
 }
 
-bool hasDebouncedPress(uint8_t pin, ButtonState &state, unsigned long now)
+void onEncoderEvent(InputEventType event, EventEncoderButton &encoder)
 {
-    const bool rawPressed = digitalRead(pin) == LOW;
-
-    if (rawPressed != state.rawPressed)
+    const size_t index = encoder.getInputId();
+    if (event == InputEventType::CHANGED)
     {
-        state.rawPressed = rawPressed;
-        state.rawStateChangedAt = now;
+        const char *direction = encoder.increment() > 0 ? "clockwise" : "counterclockwise";
+        Serial.printf("Rotary encoder %u rotated %s\n", index + 1, direction);
     }
-
-    if (state.pressed == state.rawPressed ||
-        now - state.rawStateChangedAt < debounceDurationMs)
-    {
-        return false;
-    }
-
-    state.pressed = state.rawPressed;
-    return state.pressed;
-}
-
-void logEncoderInput(
-    const RotaryEncoderPins &encoder,
-    EncoderState &state,
-    ButtonState &clickState,
-    size_t index,
-    unsigned long now)
-{
-    const uint8_t position = readEncoderPosition(encoder);
-    const uint8_t transition = (state.previousPosition << 2) | position;
-    state.previousPosition = position;
-
-    constexpr int8_t transitionDeltas[] = {
-        0, -1, 1, 0,
-        1, 0, 0, -1,
-        -1, 0, 0, 1,
-        0, 1, -1, 0,
-    };
-
-    if (transitionDeltas[transition] != 0)
-    {
-        state.transitionCount += transitionDeltas[transition];
-        if (state.transitionCount >= 4 || state.transitionCount <= -4)
-        {
-            const char *direction =
-                state.transitionCount > 0 ? "clockwise" : "counterclockwise";
-            state.transitionCount = 0;
-            Serial.printf("Rotary encoder %u rotated %s\n", index + 1, direction);
-        }
-    }
-    else if (position != ((transition >> 2) & 0b11))
-    {
-        state.transitionCount = 0;
-    }
-
-    if (hasDebouncedPress(encoder.click, clickState, now))
+    else if (event == InputEventType::CLICKED)
     {
         Serial.printf("Rotary encoder %u clicked\n", index + 1);
     }
@@ -139,60 +92,33 @@ void logEncoderInput(
 
 void Controls::initialize()
 {
-    for (const RotaryEncoderPins &encoder : encoders)
+    for (size_t index = 0; index < sizeof(buttonInputs) / sizeof(buttonInputs[0]); ++index)
     {
-        pinMode(encoder.a, INPUT_PULLUP);
-        pinMode(encoder.b, INPUT_PULLUP);
-        pinMode(encoder.click, INPUT_PULLUP);
+        buttonInputs[index].setInputId(index);
+        buttonInputs[index].setDebounceInterval(30);
+        buttonInputs[index].begin();
+        buttonInputs[index].setCallback(onButtonEvent);
     }
 
-    const unsigned long now = millis();
-    for (size_t index = 0; index < sizeof(switches) / sizeof(switches[0]); ++index)
+    for (size_t index = 0; index < sizeof(encoderInputs) / sizeof(encoderInputs[0]); ++index)
     {
-        pinMode(switches[index], INPUT_PULLUP);
-
-        const bool pressed = digitalRead(switches[index]) == LOW;
-        switchStates[index] = {pressed, pressed, now};
-    }
-
-    for (size_t index = 0; index < sizeof(encoders) / sizeof(encoders[0]); ++index)
-    {
-        encoderStates[index] = {
-            readEncoderPosition(encoders[index]),
-            0,
-        };
-        const bool clickPressed = digitalRead(encoders[index].click) == LOW;
-        encoderClickStates[index] = {
-            clickPressed,
-            clickPressed,
-            now,
-        };
+        encoderInputs[index].setInputId(index);
+        encoderInputs[index].setDebounceInterval(30);
+        encoderInputs[index].begin();
+        encoderInputs[index].setCallback(onEncoderEvent);
     }
 }
 
 bool Controls::pollAction(Action &action)
 {
-    const unsigned long now = millis();
-    for (size_t index = 0; index < sizeof(encoders) / sizeof(encoders[0]); ++index)
+    for (EventEncoderButton &encoder : encoderInputs)
     {
-        logEncoderInput(
-            encoders[index],
-            encoderStates[index],
-            encoderClickStates[index],
-            index,
-            now);
+        encoder.update();
     }
 
-    for (size_t index = 0; index < sizeof(switches) / sizeof(switches[0]); ++index)
+    for (EventButton &button : buttonInputs)
     {
-        ButtonState &state = switchStates[index];
-        if (hasDebouncedPress(switches[index], state, now))
-        {
-            if (queueAction(switchActions[index]))
-            {
-                Serial.printf("Button %u clicked\n", index + 1);
-            }
-        }
+        button.update();
     }
 
     if (actionQueueCount == 0)

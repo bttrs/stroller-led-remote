@@ -1,9 +1,9 @@
 # Stroller LED Remote
 
 Firmware for an ESP32-C3 SuperMini with two rotary encoders, six buttons, and
-one LED. Each debounced button or encoder-click press, and every completed
-encoder detent, turns the LED on for one second. Holding a switch generates
-only one press event; another event requires releasing it and pressing again.
+one LED. Input handling uses the `InputEvents` library: each debounced button
+press turns the LED on briefly, while rotary turns and clicks are reported to
+the serial log only. The rotary encoders are KY-040 modules.
 
 ## Hardware pins
 
@@ -12,9 +12,9 @@ connect the GPIO pin to ground when pressed.
 
 | Device | Signal | GPIO |
 | --- | --- | ---: |
-| Encoder 1 | A | 0 |
-| Encoder 1 | B | 1 |
-| Encoder 1 | Click | 3 |
+| Encoder 1 | CLK | 3 |
+| Encoder 1 | DT | 0 |
+| Encoder 1 | SW | 1 |
 | Encoder 2 | A | 4 |
 | Encoder 2 | B | 5 |
 | Encoder 2 | Click | 6 |
@@ -39,8 +39,8 @@ the pins low during reset or boot.
 | Button 4 | Toggle car mode |
 | Button 5 | Turn LEDs off |
 | Button 6 | Next pattern |
-| Encoder 1 turn / click | Next pattern / toggle automatic patterns |
-| Encoder 2 turn / click | Next palette / toggle automatic palettes |
+| Encoder 1 turn / click | Serial log only |
+| Encoder 2 turn / click | Serial log only |
 
 The remote LED blinks while it is discovering or reconnecting to the stroller
 and remains off after the command channel connects. Button activity briefly
@@ -49,8 +49,8 @@ lights it regardless of connection status.
 ## Layout
 
 - `src/main.cpp` - application setup and coordination
-- `src/controls.cpp`, `include/controls.h` - control initialization and
-  debounced button, encoder-click, and encoder-detent actions
+- `src/controls.cpp`, `include/controls.h` - control initialization using
+  `InputEvents` and debounced button actions and rotary input logging
 - `src/led.cpp`, `include/led.h` - LED timing and output behavior
 - `src/bluetooth.cpp`, `include/bluetooth.h` - BLE client that continuously
   discovers the `Led Stroller` peripheral by advertised name or command

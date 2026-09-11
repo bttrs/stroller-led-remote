@@ -17,6 +17,10 @@ bool toggleAutoPattern();
 bool toggleAutoPalette();
 bool nextPattern();
 bool nextPalette();
+bool speedUp();
+bool speedDown();
+bool brightnessUp();
+bool brightnessDown();
 bool turnOff();
 bool toggleCarMode();
 } // namespace Bluetooth
