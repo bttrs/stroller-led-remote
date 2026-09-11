@@ -31,6 +31,18 @@ void sendAction(Controls::Action action)
     case Controls::Action::NextPalette:
         Bluetooth::nextPalette();
         break;
+    case Controls::Action::SpeedUp:
+        Bluetooth::speedUp();
+        break;
+    case Controls::Action::SpeedDown:
+        Bluetooth::speedDown();
+        break;
+    case Controls::Action::BrightnessUp:
+        Bluetooth::brightnessUp();
+        break;
+    case Controls::Action::BrightnessDown:
+        Bluetooth::brightnessDown();
+        break;
     case Controls::Action::TurnOff:
         Bluetooth::turnOff();
         break;

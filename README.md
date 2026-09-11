@@ -36,11 +36,12 @@ the pins low during reset or boot.
 | Button 1 | Left blinker |
 | Button 2 | Hazard lights |
 | Button 3 | Right blinker |
-| Button 4 | Toggle car mode |
-| Button 5 | Turn LEDs off |
+| Button 4 click / long click | Toggle car mode / turn LEDs off |
+| Button 5 | Next palette |
 | Button 6 | Next pattern |
-| Encoder 1 turn / click | Serial log only |
-| Encoder 2 turn / click | Serial log only |
+| Encoder 1 clockwise / counterclockwise | Increase / decrease speed |
+| Encoder 2 clockwise / counterclockwise | Increase / decrease brightness |
+| Encoder 1 / 2 click | Serial log only |
 
 The remote LED blinks while it is discovering or reconnecting to the stroller
 and remains off after the command channel connects. Button activity briefly
@@ -50,7 +51,7 @@ lights it regardless of connection status.
 
 - `src/main.cpp` - application setup and coordination
 - `src/controls.cpp`, `include/controls.h` - control initialization using
-  `InputEvents` and debounced button actions and rotary input logging
+  `InputEvents`, debounced button actions, and rotary speed/brightness actions
 - `src/led.cpp`, `include/led.h` - LED timing and output behavior
 - `src/bluetooth.cpp`, `include/bluetooth.h` - BLE client that continuously
   discovers the `Led Stroller` peripheral by advertised name or command

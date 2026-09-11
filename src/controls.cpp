@@ -15,7 +15,7 @@ constexpr Controls::Action switchActions[] = {
     Controls::Action::HazardLights,
     Controls::Action::BlinkerRight,
     Controls::Action::ToggleCarMode,
-    Controls::Action::TurnOff,
+    Controls::Action::NextPalette,
     Controls::Action::NextPattern,
 };
 constexpr uint8_t actionQueueSize = 16;
@@ -67,12 +67,31 @@ bool queueAction(Controls::Action action)
 
 void onButtonEvent(InputEventType event, EventButton &button)
 {
+    const size_t index = button.getInputId();
+    if (index == 3)
+    {
+        if (event == InputEventType::LONG_CLICKED)
+        {
+            if (queueAction(Controls::Action::TurnOff))
+            {
+                Serial.println("Button 4 long clicked");
+            }
+        }
+        else if (event == InputEventType::CLICKED)
+        {
+            if (queueAction(Controls::Action::ToggleCarMode))
+            {
+                Serial.println("Button 4 clicked");
+            }
+        }
+        return;
+    }
+
     if (event != InputEventType::PRESSED)
     {
         return;
     }
 
-    const size_t index = button.getInputId();
     if (queueAction(switchActions[index]))
     {
         Serial.printf("Button %u clicked\n", index + 1);
@@ -87,7 +106,23 @@ void onEncoderEvent(InputEventType event, EventEncoder &encoder)
     }
 
     const size_t index = encoder.getInputId();
-    const char *direction = encoder.increment() > 0 ? "clockwise" : "counterclockwise";
+    const int16_t increment = encoder.increment();
+    const bool clockwise = increment > 0;
+    const Controls::Action action =
+        index == 0
+            ? (clockwise ? Controls::Action::SpeedUp : Controls::Action::SpeedDown)
+            : (clockwise ? Controls::Action::BrightnessUp : Controls::Action::BrightnessDown);
+    const uint16_t actionCount = clockwise ? increment : -increment;
+
+    for (uint16_t step = 0; step < actionCount; ++step)
+    {
+        if (!queueAction(action))
+        {
+            break;
+        }
+    }
+
+    const char *direction = clockwise ? "clockwise" : "counterclockwise";
     Serial.printf("Rotary encoder %u rotated %s\n", index + 1, direction);
 }
 

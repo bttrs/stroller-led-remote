@@ -11,12 +11,16 @@ enum class Action
     ToggleAutoPalette,
     NextPattern,
     NextPalette,
+    SpeedUp,
+    SpeedDown,
+    BrightnessUp,
+    BrightnessDown,
     TurnOff,
     ToggleCarMode,
 };
 
 void initialize();
 
-// Returns one queued button action.
+// Returns one queued control action.
 bool pollAction(Action &action);
 } // namespace Controls
