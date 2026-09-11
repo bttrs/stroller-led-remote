@@ -255,6 +255,26 @@ bool Bluetooth::nextPalette()
     return queueCommand("next_palette");
 }
 
+bool Bluetooth::speedUp()
+{
+    return queueCommand("speed_up");
+}
+
+bool Bluetooth::speedDown()
+{
+    return queueCommand("speed_down");
+}
+
+bool Bluetooth::brightnessUp()
+{
+    return queueCommand("brightness_up");
+}
+
+bool Bluetooth::brightnessDown()
+{
+    return queueCommand("brightness_down");
+}
+
 bool Bluetooth::turnOff()
 {
     return queueCommand("off");

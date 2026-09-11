@@ -43,9 +43,13 @@ void sendAction(Controls::Action action)
 
 void setup()
 {
+    Serial.begin(115200);
+    Serial.println("Stroller LED remote starting");
     Controls::initialize();
+    Serial.println("Controls initialized");
     Led::initialize();
     Bluetooth::initialize();
+    Serial.println("Bluetooth discovery started");
 }
 
 void loop()
