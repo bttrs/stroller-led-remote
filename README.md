@@ -29,23 +29,34 @@ connect the GPIO pin to ground when pressed.
 GPIO 2, 8, and 9 are ESP32-C3 strapping pins. Ensure their buttons do not hold
 the pins low during reset or boot.
 
+## Controls
+
+| Input | Action |
+| --- | --- |
+| Button 1 | Left blinker |
+| Button 2 | Hazard lights |
+| Button 3 | Right blinker |
+| Button 4 | Toggle car mode |
+| Button 5 | Turn LEDs off |
+| Button 6 | Next pattern |
+| Encoder 1 turn / click | Next pattern / toggle automatic patterns |
+| Encoder 2 turn / click | Next palette / toggle automatic palettes |
+
+The remote LED blinks while it is discovering or reconnecting to the stroller
+and remains off after the command channel connects. Button activity briefly
+lights it regardless of connection status.
+
 ## Layout
 
 - `src/main.cpp` - application setup and coordination
 - `src/controls.cpp`, `include/controls.h` - control initialization and
-  debounced button press events
+  debounced button, encoder-click, and encoder-detent actions
 - `src/led.cpp`, `include/led.h` - LED timing and output behavior
-- `src/bluetooth.cpp`, `include/bluetooth.h` - dormant BLE client that
-  reconnects to `BLUETOOTH_TARGET_ADDRESS` when its `initialize()` and
-  `update()` functions are later integrated. Set that build macro to the
-  target MAC address; use `BLUETOOTH_TARGET_ADDRESS_TYPE` if it has a random
-  address rather than the default public address. The client writes
-  hyphenated command names to `FF00`/`FF01` by default and logs received
-  acknowledgement notifications; configure the command and acknowledgement
-  GATT UUIDs with the corresponding `BLUETOOTH_*_UUID` build macros. Commands
-  are queued, adjacent identical commands are coalesced, and transmitted
-  without waiting for a GATT write response every 15 ms; acknowledgement
-  notifications are still logged.
+- `src/bluetooth.cpp`, `include/bluetooth.h` - BLE client that continuously
+  discovers the `Led Stroller` peripheral by advertised name or command
+  service, reconnects after a disconnect, and writes the stroller's commands
+  to its command characteristic. Commands entered before connection are queued
+  and sent without write responses every 15 ms.
 - `lib/` - project-specific libraries
 - `test/` - PlatformIO tests
 

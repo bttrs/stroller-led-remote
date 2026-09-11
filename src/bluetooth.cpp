@@ -3,45 +3,24 @@
 
 #include "bluetooth.h"
 
-#ifndef BLUETOOTH_TARGET_ADDRESS
-#define BLUETOOTH_TARGET_ADDRESS "AA:BB:CC:DD:EE:FF"
-#endif
-
-#ifndef BLUETOOTH_TARGET_ADDRESS_TYPE
-#define BLUETOOTH_TARGET_ADDRESS_TYPE BLE_ADDR_PUBLIC
-#endif
-
-#ifndef BLUETOOTH_COMMAND_SERVICE_UUID
-#define BLUETOOTH_COMMAND_SERVICE_UUID "FF00"
-#endif
-
-#ifndef BLUETOOTH_COMMAND_CHARACTERISTIC_UUID
-#define BLUETOOTH_COMMAND_CHARACTERISTIC_UUID "FF01"
-#endif
-
-#ifndef BLUETOOTH_ACKNOWLEDGEMENT_CHARACTERISTIC_UUID
-#define BLUETOOTH_ACKNOWLEDGEMENT_CHARACTERISTIC_UUID \
-    BLUETOOTH_COMMAND_CHARACTERISTIC_UUID
-#endif
-
 namespace
 {
-constexpr unsigned long reconnectIntervalMs = 5000;
-constexpr unsigned long connectionTimeoutMs = 5000;
+constexpr char strollerName[] = "Led Stroller";
+constexpr char commandServiceUuid[] = "8bc01404-b072-413b-881e-6ca27b3f630d";
+constexpr char commandCharacteristicUuid[] =
+    "c7df1272-99f7-4059-8a35-ca03831f2897";
 constexpr unsigned long commandIntervalMs = 15;
 constexpr uint8_t commandQueueSize = 16;
 
 NimBLEClient *client = nullptr;
 NimBLERemoteCharacteristic *commandCharacteristic = nullptr;
-NimBLERemoteCharacteristic *acknowledgementCharacteristic = nullptr;
-unsigned long nextConnectionAttemptAt = 0;
+bool connectionAttemptInProgress = false;
+bool commandChannelReady = false;
 unsigned long nextCommandTransmissionAt = 0;
-bool wasConnected = false;
 
 struct QueuedCommand
 {
-    const char *name;
-    uint8_t repeatCount;
+    const char *value;
 };
 
 QueuedCommand commandQueue[commandQueueSize];
@@ -49,9 +28,123 @@ uint8_t commandQueueHead = 0;
 uint8_t commandQueueTail = 0;
 uint8_t commandQueueCount = 0;
 
-bool retryIsDue(unsigned long now)
+void startScan();
+
+bool isStrollerAdvertisement(const NimBLEAdvertisedDevice *advertisedDevice)
 {
-    return static_cast<long>(now - nextConnectionAttemptAt) >= 0;
+    const bool hasStrollerName =
+        advertisedDevice->haveName() &&
+        advertisedDevice->getName() == strollerName;
+    const bool hasCommandService =
+        advertisedDevice->isAdvertisingService(NimBLEUUID(commandServiceUuid));
+
+    // The legacy BLE server may not fit both its name and 128-bit service UUID
+    // in one advertising packet. The GATT lookup below validates the service.
+    return hasStrollerName || hasCommandService;
+}
+
+class ClientCallbacks : public NimBLEClientCallbacks
+{
+    void onConnect(NimBLEClient *) override
+    {
+        connectionAttemptInProgress = false;
+    }
+
+    void onConnectFail(NimBLEClient *, int) override
+    {
+        connectionAttemptInProgress = false;
+        startScan();
+    }
+
+    void onDisconnect(NimBLEClient *, int) override
+    {
+        commandCharacteristic = nullptr;
+        commandChannelReady = false;
+        connectionAttemptInProgress = false;
+        startScan();
+    }
+} clientCallbacks;
+
+class ScanCallbacks : public NimBLEScanCallbacks
+{
+    void onResult(const NimBLEAdvertisedDevice *advertisedDevice) override
+    {
+        if (connectionAttemptInProgress ||
+            !isStrollerAdvertisement(advertisedDevice))
+        {
+            return;
+        }
+
+        Serial.printf(
+            "Bluetooth connecting to %s\n",
+            advertisedDevice->getAddress().toString().c_str());
+        NimBLEScan *scan = NimBLEDevice::getScan();
+        scan->stop();
+
+        client = NimBLEDevice::getDisconnectedClient();
+        if (client == nullptr)
+        {
+            client = NimBLEDevice::createClient(advertisedDevice->getAddress());
+        }
+
+        if (client == nullptr)
+        {
+            Serial.println("Bluetooth client allocation failed");
+            startScan();
+            return;
+        }
+
+        client->setClientCallbacks(&clientCallbacks, false);
+        connectionAttemptInProgress = true;
+        if (!client->connect(advertisedDevice, true, true))
+        {
+            connectionAttemptInProgress = false;
+            Serial.println("Bluetooth connection failed");
+            startScan();
+        }
+    }
+
+    void onScanEnd(const NimBLEScanResults &, int) override
+    {
+        if (!connectionAttemptInProgress &&
+            (client == nullptr || !client->isConnected()))
+        {
+            startScan();
+        }
+    }
+} scanCallbacks;
+
+void startScan()
+{
+    NimBLEScan *scan = NimBLEDevice::getScan();
+    if (!scan->isScanning())
+    {
+        scan->start(0);
+    }
+}
+
+bool prepareCommandChannel()
+{
+    NimBLERemoteService *commandService =
+        client->getService(commandServiceUuid);
+    if (commandService == nullptr)
+    {
+        Serial.println("Bluetooth command service not found");
+        return false;
+    }
+
+    commandCharacteristic =
+        commandService->getCharacteristic(commandCharacteristicUuid);
+    if (commandCharacteristic == nullptr || !commandCharacteristic->canWrite())
+    {
+        Serial.println("Bluetooth command characteristic is unavailable");
+        commandCharacteristic = nullptr;
+        return false;
+    }
+
+    commandChannelReady = true;
+    Serial.println("Bluetooth connected to Led Stroller");
+    return true;
 }
 
 bool commandTransmissionIsDue(unsigned long now)
@@ -59,118 +152,15 @@ bool commandTransmissionIsDue(unsigned long now)
     return static_cast<long>(now - nextCommandTransmissionAt) >= 0;
 }
 
-void clearCommandQueue()
+bool queueCommand(const char *command)
 {
-    commandQueueHead = 0;
-    commandQueueTail = 0;
-    commandQueueCount = 0;
-}
-
-void logAcknowledgement(
-    NimBLERemoteCharacteristic *, uint8_t *data, size_t length, bool)
-{
-    Serial.printf(
-        "Bluetooth acknowledgement: %.*s\n", static_cast<int>(length), data);
-}
-
-bool prepareCommandChannel()
-{
-    NimBLERemoteService *commandService =
-        client->getService(BLUETOOTH_COMMAND_SERVICE_UUID);
-    if (commandService == nullptr)
-    {
-        Serial.printf(
-            "Bluetooth command service %s not found\n",
-            BLUETOOTH_COMMAND_SERVICE_UUID);
-        return false;
-    }
-
-    commandCharacteristic = commandService->getCharacteristic(
-        BLUETOOTH_COMMAND_CHARACTERISTIC_UUID);
-    if (commandCharacteristic == nullptr || !commandCharacteristic->canWrite())
-    {
-        Serial.printf(
-            "Bluetooth command characteristic %s is unavailable\n",
-            BLUETOOTH_COMMAND_CHARACTERISTIC_UUID);
-        commandCharacteristic = nullptr;
-        return false;
-    }
-
-    acknowledgementCharacteristic = commandService->getCharacteristic(
-        BLUETOOTH_ACKNOWLEDGEMENT_CHARACTERISTIC_UUID);
-    if (acknowledgementCharacteristic == nullptr)
-    {
-        Serial.printf(
-            "Bluetooth acknowledgement characteristic %s not found\n",
-            BLUETOOTH_ACKNOWLEDGEMENT_CHARACTERISTIC_UUID);
-        return false;
-    }
-
-    const bool notifications = acknowledgementCharacteristic->canNotify();
-    if (!notifications && !acknowledgementCharacteristic->canIndicate())
-    {
-        Serial.printf(
-            "Bluetooth acknowledgement characteristic %s cannot notify\n",
-            BLUETOOTH_ACKNOWLEDGEMENT_CHARACTERISTIC_UUID);
-        return false;
-    }
-
-    if (!acknowledgementCharacteristic->subscribe(
-            notifications, logAcknowledgement, true))
-    {
-        Serial.printf("Bluetooth acknowledgement subscription failed\n");
-        return false;
-    }
-
-    return true;
-}
-
-void connectToTarget()
-{
-    commandCharacteristic = nullptr;
-    acknowledgementCharacteristic = nullptr;
-
-    if (client->connect(false))
-    {
-        Serial.printf("Bluetooth connected to %s\n", BLUETOOTH_TARGET_ADDRESS);
-        if (!prepareCommandChannel())
-        {
-            client->disconnect();
-        }
-        return;
-    }
-
-    Serial.printf("Bluetooth connection to %s failed\n", BLUETOOTH_TARGET_ADDRESS);
-}
-
-bool sendCommand(const char *command)
-{
-    if (commandCharacteristic == nullptr || !client->isConnected())
-    {
-        Serial.printf("Bluetooth command %s ignored: target is unavailable\n", command);
-        return false;
-    }
-
-    if (commandQueueCount > 0)
-    {
-        const uint8_t previousIndex =
-            commandQueueTail == 0 ? commandQueueSize - 1 : commandQueueTail - 1;
-        QueuedCommand &previousCommand = commandQueue[previousIndex];
-        if (strcmp(previousCommand.name, command) == 0 &&
-            previousCommand.repeatCount < UINT8_MAX)
-        {
-            ++previousCommand.repeatCount;
-            return true;
-        }
-    }
-
     if (commandQueueCount == commandQueueSize)
     {
         Serial.printf("Bluetooth command %s dropped: queue is full\n", command);
         return false;
     }
 
-    commandQueue[commandQueueTail] = {command, 1};
+    commandQueue[commandQueueTail] = {command};
     commandQueueTail = (commandQueueTail + 1) % commandQueueSize;
     ++commandQueueCount;
     return true;
@@ -178,26 +168,23 @@ bool sendCommand(const char *command)
 
 void transmitNextCommand(unsigned long now)
 {
-    if (commandQueueCount == 0 || !commandTransmissionIsDue(now))
+    if (!commandChannelReady || commandQueueCount == 0 ||
+        !commandTransmissionIsDue(now))
     {
         return;
     }
 
-    QueuedCommand &command = commandQueue[commandQueueHead];
-    if (!commandCharacteristic->writeValue(command.name, 0, false))
+    const QueuedCommand &command = commandQueue[commandQueueHead];
+    if (!commandCharacteristic->writeValue(command.value, false))
     {
-        Serial.printf("Bluetooth command %s could not be sent\n", command.name);
+        Serial.printf("Bluetooth command %s could not be sent\n", command.value);
         nextCommandTransmissionAt = now + commandIntervalMs;
         return;
     }
 
-    Serial.printf("Bluetooth command sent: %s\n", command.name);
-    if (--command.repeatCount == 0)
-    {
-        commandQueueHead = (commandQueueHead + 1) % commandQueueSize;
-        --commandQueueCount;
-    }
-
+    Serial.printf("Bluetooth command sent: %s\n", command.value);
+    commandQueueHead = (commandQueueHead + 1) % commandQueueSize;
+    --commandQueueCount;
     nextCommandTransmissionAt = now + commandIntervalMs;
 }
 } // namespace
@@ -206,93 +193,74 @@ void Bluetooth::initialize()
 {
     NimBLEDevice::init("");
 
-    const NimBLEAddress targetAddress(
-        std::string(BLUETOOTH_TARGET_ADDRESS), BLUETOOTH_TARGET_ADDRESS_TYPE);
-    client = NimBLEDevice::createClient(targetAddress);
-    client->setConnectionParams(6, 12, 0, 200);
-    client->setConnectTimeout(connectionTimeoutMs);
-    nextConnectionAttemptAt = millis();
+    NimBLEScan *scan = NimBLEDevice::getScan();
+    scan->setScanCallbacks(&scanCallbacks);
+    scan->setInterval(45);
+    scan->setWindow(45);
+    scan->setActiveScan(true);
+    startScan();
 }
 
 void Bluetooth::update()
 {
-    if (client == nullptr)
+    if (client != nullptr && client->isConnected() && !commandChannelReady)
     {
-        return;
+        if (!prepareCommandChannel())
+        {
+            client->disconnect();
+            return;
+        }
     }
 
-    const unsigned long now = millis();
-    if (client->isConnected())
-    {
-        wasConnected = true;
-        transmitNextCommand(now);
-        return;
-    }
-
-    if (wasConnected)
-    {
-        Serial.printf("Bluetooth connection lost; clearing pending commands\n");
-        commandCharacteristic = nullptr;
-        acknowledgementCharacteristic = nullptr;
-        clearCommandQueue();
-        wasConnected = false;
-    }
-
-    if (!retryIsDue(now))
-    {
-        return;
-    }
-
-    nextConnectionAttemptAt = now + reconnectIntervalMs;
-    connectToTarget();
+    transmitNextCommand(millis());
 }
 
 bool Bluetooth::isConnected()
 {
-    return client != nullptr && client->isConnected();
-}
-
-bool Bluetooth::increaseBrightness()
-{
-    return sendCommand("brightness-increase");
-}
-
-bool Bluetooth::decreaseBrightness()
-{
-    return sendCommand("brightness-decrease");
-}
-
-bool Bluetooth::increaseSpeed()
-{
-    return sendCommand("speed-increase");
-}
-
-bool Bluetooth::decreaseSpeed()
-{
-    return sendCommand("speed-decrease");
+    return commandChannelReady && client != nullptr && client->isConnected();
 }
 
 bool Bluetooth::blinkerLeft()
 {
-    return sendCommand("blinker-left");
+    return queueCommand("L");
 }
 
 bool Bluetooth::blinkerRight()
 {
-    return sendCommand("blinker-right");
+    return queueCommand("R");
+}
+
+bool Bluetooth::hazardLights()
+{
+    return queueCommand("W");
+}
+
+bool Bluetooth::toggleAutoPattern()
+{
+    return queueCommand("auto_pattern");
+}
+
+bool Bluetooth::toggleAutoPalette()
+{
+    return queueCommand("auto_palette");
 }
 
 bool Bluetooth::nextPattern()
 {
-    return sendCommand("next-pattern");
+    return queueCommand("next_pattern");
 }
 
 bool Bluetooth::nextPalette()
 {
-    return sendCommand("next-palette");
+    return queueCommand("next_palette");
 }
 
-bool Bluetooth::nextMode()
+bool Bluetooth::turnOff()
 {
-    return sendCommand("next-mode");
+    return queueCommand("off");
+}
+
+bool Bluetooth::toggleCarMode()
+{
+    return queueCommand("car");
 }

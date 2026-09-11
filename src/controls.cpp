@@ -13,18 +13,32 @@ constexpr uint8_t encoder2B = 5;
 constexpr uint8_t encoder2Click = 6;
 
 constexpr uint8_t switches[] = {7, 20, 21, 2, 8, 9, encoder1Click, encoder2Click};
+constexpr Controls::Action switchActions[] = {
+    Controls::Action::BlinkerLeft,
+    Controls::Action::HazardLights,
+    Controls::Action::BlinkerRight,
+    Controls::Action::ToggleCarMode,
+    Controls::Action::TurnOff,
+    Controls::Action::NextPattern,
+    Controls::Action::ToggleAutoPattern,
+    Controls::Action::ToggleAutoPalette,
+};
 constexpr unsigned long debounceDurationMs = 30;
+constexpr uint8_t actionQueueSize = 16;
 
 struct RotaryEncoderPins
 {
     uint8_t a;
     uint8_t b;
-    uint8_t click;
 };
 
 constexpr RotaryEncoderPins encoders[] = {
-    {encoder1A, encoder1B, encoder1Click},
-    {encoder2A, encoder2B, encoder2Click},
+    {encoder1A, encoder1B},
+    {encoder2A, encoder2B},
+};
+constexpr Controls::Action encoderActions[] = {
+    Controls::Action::NextPattern,
+    Controls::Action::NextPalette,
 };
 
 struct ButtonState
@@ -42,11 +56,29 @@ struct EncoderState
 
 ButtonState switchStates[sizeof(switches) / sizeof(switches[0])];
 EncoderState encoderStates[sizeof(encoders) / sizeof(encoders[0])];
+Controls::Action actionQueue[actionQueueSize];
+uint8_t actionQueueHead = 0;
+uint8_t actionQueueTail = 0;
+uint8_t actionQueueCount = 0;
 
 uint8_t readEncoderPosition(const RotaryEncoderPins &encoder)
 {
     return (digitalRead(encoder.a) == HIGH ? 0b10 : 0) |
            (digitalRead(encoder.b) == HIGH ? 0b01 : 0);
+}
+
+bool queueAction(Controls::Action action)
+{
+    if (actionQueueCount == actionQueueSize)
+    {
+        Serial.println("Control action dropped: queue is full");
+        return false;
+    }
+
+    actionQueue[actionQueueTail] = action;
+    actionQueueTail = (actionQueueTail + 1) % actionQueueSize;
+    ++actionQueueCount;
+    return true;
 }
 
 bool pollEncoder(const RotaryEncoderPins &encoder, EncoderState &state)
@@ -79,7 +111,6 @@ void Controls::initialize()
     {
         pinMode(encoder.a, INPUT_PULLUP);
         pinMode(encoder.b, INPUT_PULLUP);
-        pinMode(encoder.click, INPUT_PULLUP);
     }
 
     const unsigned long now = millis();
@@ -97,11 +128,9 @@ void Controls::initialize()
     }
 }
 
-bool Controls::pollActivity()
+bool Controls::pollAction(Action &action)
 {
     const unsigned long now = millis();
-    bool activityDetected = false;
-
     for (size_t index = 0; index < sizeof(switches) / sizeof(switches[0]); ++index)
     {
         ButtonState &state = switchStates[index];
@@ -117,14 +146,28 @@ bool Controls::pollActivity()
             now - state.rawStateChangedAt >= debounceDurationMs)
         {
             state.pressed = state.rawPressed;
-            activityDetected = activityDetected || state.pressed;
+            if (state.pressed)
+            {
+                queueAction(switchActions[index]);
+            }
         }
     }
 
     for (size_t index = 0; index < sizeof(encoders) / sizeof(encoders[0]); ++index)
     {
-        activityDetected = pollEncoder(encoders[index], encoderStates[index]) || activityDetected;
+        if (pollEncoder(encoders[index], encoderStates[index]))
+        {
+            queueAction(encoderActions[index]);
+        }
     }
 
-    return activityDetected;
+    if (actionQueueCount == 0)
+    {
+        return false;
+    }
+
+    action = actionQueue[actionQueueHead];
+    actionQueueHead = (actionQueueHead + 1) % actionQueueSize;
+    --actionQueueCount;
+    return true;
 }

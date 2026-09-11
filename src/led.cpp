@@ -5,32 +5,74 @@
 namespace
 {
 constexpr uint8_t pin = 10;
+constexpr unsigned long disconnectedBlinkIntervalMs = 500;
 
-unsigned long turnedOnAt;
-unsigned long duration;
-bool isOn;
+unsigned long buttonFlashStartedAt;
+unsigned long buttonFlashDuration;
+unsigned long statusChangedAt;
+bool buttonFlashActive;
+bool connected;
+bool disconnectedBlinkIsOn;
+bool outputIsOn;
+
+void setOutput(bool isOn)
+{
+    if (outputIsOn == isOn)
+    {
+        return;
+    }
+
+    digitalWrite(pin, isOn ? HIGH : LOW);
+    outputIsOn = isOn;
+}
 } // namespace
 
 void Led::initialize()
 {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
-    isOn = false;
+    outputIsOn = false;
+    connected = false;
+    disconnectedBlinkIsOn = false;
+    buttonFlashActive = false;
+    statusChangedAt = millis();
 }
 
 void Led::activateFor(unsigned long durationMs)
 {
-    digitalWrite(pin, HIGH);
-    turnedOnAt = millis();
-    duration = durationMs;
-    isOn = true;
+    buttonFlashStartedAt = millis();
+    buttonFlashDuration = durationMs;
+    buttonFlashActive = true;
+    setOutput(true);
+}
+
+void Led::setConnectionStatus(bool isConnected)
+{
+    if (connected == isConnected)
+    {
+        return;
+    }
+
+    connected = isConnected;
+    disconnectedBlinkIsOn = false;
+    statusChangedAt = millis();
 }
 
 void Led::update()
 {
-    if (isOn && millis() - turnedOnAt >= duration)
+    const unsigned long now = millis();
+    if (buttonFlashActive &&
+        now - buttonFlashStartedAt >= buttonFlashDuration)
     {
-        digitalWrite(pin, LOW);
-        isOn = false;
+        buttonFlashActive = false;
     }
+
+    if (!connected &&
+        now - statusChangedAt >= disconnectedBlinkIntervalMs)
+    {
+        disconnectedBlinkIsOn = !disconnectedBlinkIsOn;
+        statusChangedAt = now;
+    }
+
+    setOutput(buttonFlashActive || (!connected && disconnectedBlinkIsOn));
 }
