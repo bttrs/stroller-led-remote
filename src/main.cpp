@@ -75,5 +75,6 @@ void loop()
 
     Bluetooth::update();
     Led::setConnectionStatus(Bluetooth::isConnected());
+    Led::setPalettePatternStatus(Bluetooth::isPalettePatternActive());
     Led::update();
 }

@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <NimBLEDevice.h>
 
+#include <cstring>
+
 #include "bluetooth.h"
 
 namespace
@@ -9,13 +11,18 @@ constexpr char strollerName[] = "Led Stroller";
 constexpr char commandServiceUuid[] = "8bc01404-b072-413b-881e-6ca27b3f630d";
 constexpr char commandCharacteristicUuid[] =
     "c7df1272-99f7-4059-8a35-ca03831f2897";
+constexpr char statusCharacteristicUuid[] =
+    "d6a27e19-4382-4f8d-a6f8-c2eb57a91476";
+constexpr char palettePatternStatus[] = "palette";
 constexpr unsigned long commandIntervalMs = 15;
 constexpr uint8_t commandQueueSize = 16;
 
 NimBLEClient *client = nullptr;
 NimBLERemoteCharacteristic *commandCharacteristic = nullptr;
+NimBLERemoteCharacteristic *statusCharacteristic = nullptr;
 bool connectionAttemptInProgress = false;
 bool commandChannelReady = false;
+bool palettePatternActive = false;
 unsigned long nextCommandTransmissionAt = 0;
 
 struct QueuedCommand
@@ -29,6 +36,32 @@ uint8_t commandQueueTail = 0;
 uint8_t commandQueueCount = 0;
 
 void startScan();
+
+void updatePalettePatternStatus(const uint8_t *value, size_t length)
+{
+    const bool isPalettePattern =
+        length == sizeof(palettePatternStatus) - 1 &&
+        std::memcmp(value, palettePatternStatus, length) == 0;
+
+    if (palettePatternActive == isPalettePattern)
+    {
+        return;
+    }
+
+    palettePatternActive = isPalettePattern;
+    Serial.printf(
+        "Bluetooth pattern is %spalette-driven\n",
+        palettePatternActive ? "" : "not ");
+}
+
+void statusCharacteristicCallback(
+    NimBLERemoteCharacteristic *,
+    uint8_t *value,
+    size_t length,
+    bool)
+{
+    updatePalettePatternStatus(value, length);
+}
 
 bool isStrollerAdvertisement(const NimBLEAdvertisedDevice *advertisedDevice)
 {
@@ -59,7 +92,9 @@ class ClientCallbacks : public NimBLEClientCallbacks
     void onDisconnect(NimBLEClient *, int) override
     {
         commandCharacteristic = nullptr;
+        statusCharacteristic = nullptr;
         commandChannelReady = false;
+        palettePatternActive = false;
         connectionAttemptInProgress = false;
         startScan();
     }
@@ -142,6 +177,28 @@ bool prepareCommandChannel()
         return false;
     }
 
+    statusCharacteristic =
+        commandService->getCharacteristic(statusCharacteristicUuid);
+    if (statusCharacteristic == nullptr || !statusCharacteristic->canRead() ||
+        !statusCharacteristic->canNotify())
+    {
+        Serial.println("Bluetooth status characteristic is unavailable");
+        statusCharacteristic = nullptr;
+        return false;
+    }
+
+    if (!statusCharacteristic->subscribe(true, statusCharacteristicCallback))
+    {
+        Serial.println("Bluetooth status notifications could not be enabled");
+        statusCharacteristic = nullptr;
+        return false;
+    }
+
+    const std::string status = statusCharacteristic->readValue();
+    updatePalettePatternStatus(
+        reinterpret_cast<const uint8_t *>(status.data()),
+        status.size());
+
     commandChannelReady = true;
     Serial.println("Bluetooth connected to Led Stroller");
     return true;
@@ -218,6 +275,11 @@ void Bluetooth::update()
 bool Bluetooth::isConnected()
 {
     return commandChannelReady && client != nullptr && client->isConnected();
+}
+
+bool Bluetooth::isPalettePatternActive()
+{
+    return palettePatternActive;
 }
 
 bool Bluetooth::blinkerLeft()

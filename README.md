@@ -43,9 +43,10 @@ the pins low during reset or boot.
 | Encoder 2 clockwise / counterclockwise | Increase / decrease brightness |
 | Encoder 1 / 2 click | Serial log only |
 
-The remote LED blinks while it is discovering or reconnecting to the stroller
-and remains off after the command channel connects. Button activity briefly
-lights it regardless of connection status.
+The remote LED blinks while it is discovering or reconnecting to the stroller.
+When connected, it remains on while the stroller has a palette-driven pattern
+selected, otherwise it remains off. Button activity briefly lights it
+regardless of connection status.
 
 ## Layout
 

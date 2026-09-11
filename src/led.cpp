@@ -12,6 +12,7 @@ unsigned long buttonFlashDuration;
 unsigned long statusChangedAt;
 bool buttonFlashActive;
 bool connected;
+bool palettePatternActive;
 bool disconnectedBlinkIsOn;
 bool outputIsOn;
 
@@ -33,6 +34,7 @@ void Led::initialize()
     digitalWrite(pin, LOW);
     outputIsOn = false;
     connected = false;
+    palettePatternActive = false;
     disconnectedBlinkIsOn = false;
     buttonFlashActive = false;
     statusChangedAt = millis();
@@ -58,6 +60,11 @@ void Led::setConnectionStatus(bool isConnected)
     statusChangedAt = millis();
 }
 
+void Led::setPalettePatternStatus(bool isPalettePatternActive)
+{
+    palettePatternActive = isPalettePatternActive;
+}
+
 void Led::update()
 {
     const unsigned long now = millis();
@@ -74,5 +81,7 @@ void Led::update()
         statusChangedAt = now;
     }
 
-    setOutput(buttonFlashActive || (!connected && disconnectedBlinkIsOn));
+    setOutput(
+        buttonFlashActive || (connected && palettePatternActive) ||
+        (!connected && disconnectedBlinkIsOn));
 }

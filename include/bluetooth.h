@@ -9,6 +9,7 @@ void initialize();
 void update();
 
 bool isConnected();
+bool isPalettePatternActive();
 
 bool blinkerLeft();
 bool blinkerRight();
