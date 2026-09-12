@@ -15,6 +15,8 @@ constexpr char commandCharacteristicUuid[] =
 constexpr char statusCharacteristicUuid[] =
     "d6a27e19-4382-4f8d-a6f8-c2eb57a91476";
 constexpr char palettePatternStatus[] = "palette";
+constexpr char notPalettePatternStatus[] = "not_palette";
+constexpr char nextPatternStatusPrefix[] = "received:next_pattern:";
 constexpr unsigned long notificationLedDurationMs = 25;
 constexpr unsigned long commandIntervalMs = 15;
 constexpr uint8_t commandQueueSize = 16;
@@ -51,11 +53,49 @@ bool hasActiveConnection()
     return commandChannelReady && client != nullptr && client->isConnected();
 }
 
+bool parsePalettePatternStatus(
+    const uint8_t *value,
+    size_t length,
+    bool &isPalettePattern)
+{
+    const size_t paletteStatusLength = sizeof(palettePatternStatus) - 1;
+    const size_t notPaletteStatusLength = sizeof(notPalettePatternStatus) - 1;
+
+    if (length == paletteStatusLength &&
+        std::memcmp(value, palettePatternStatus, length) == 0)
+    {
+        isPalettePattern = true;
+        return true;
+    }
+
+    if (length == notPaletteStatusLength &&
+        std::memcmp(value, notPalettePatternStatus, length) == 0)
+    {
+        isPalettePattern = false;
+        return true;
+    }
+
+    const size_t nextPatternPrefixLength = sizeof(nextPatternStatusPrefix) - 1;
+    if (length <= nextPatternPrefixLength ||
+        std::memcmp(value, nextPatternStatusPrefix, nextPatternPrefixLength) !=
+            0)
+    {
+        return false;
+    }
+
+    return parsePalettePatternStatus(
+        value + nextPatternPrefixLength,
+        length - nextPatternPrefixLength,
+        isPalettePattern);
+}
+
 void updatePalettePatternStatus(const uint8_t *value, size_t length)
 {
-    const bool isPalettePattern =
-        length == sizeof(palettePatternStatus) - 1 &&
-        std::memcmp(value, palettePatternStatus, length) == 0;
+    bool isPalettePattern;
+    if (!parsePalettePatternStatus(value, length, isPalettePattern))
+    {
+        return;
+    }
 
     if (palettePatternActive == isPalettePattern)
     {

@@ -45,7 +45,7 @@ void Led::activateFor(unsigned long durationMs)
     buttonFlashStartedAt = millis();
     buttonFlashDuration = durationMs;
     buttonFlashActive = true;
-    setOutput(true);
+    setOutput(!(connected && palettePatternActive));
 }
 
 void Led::setConnectionStatus(bool isConnected)
@@ -81,7 +81,8 @@ void Led::update()
         statusChangedAt = now;
     }
 
-    setOutput(
-        buttonFlashActive || (connected && palettePatternActive) ||
-        (!connected && disconnectedBlinkIsOn));
+    const bool statusOutputIsOn =
+        (connected && palettePatternActive) ||
+        (!connected && disconnectedBlinkIsOn);
+    setOutput(buttonFlashActive ? !statusOutputIsOn : statusOutputIsOn);
 }

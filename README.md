@@ -46,7 +46,8 @@ the pins low during reset or boot.
 The remote LED blinks while it is discovering or reconnecting to the stroller.
 When connected, it remains on while the stroller has a palette-driven pattern
 selected, otherwise it remains off. Button activity briefly lights it
-regardless of connection status.
+regardless of connection status; when the palette status already holds it on,
+the acknowledgement briefly turns it off instead.
 
 ## Layout
 
