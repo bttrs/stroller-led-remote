@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "bluetooth.h"
+#include "led.h"
 
 namespace
 {
@@ -14,6 +15,7 @@ constexpr char commandCharacteristicUuid[] =
 constexpr char statusCharacteristicUuid[] =
     "d6a27e19-4382-4f8d-a6f8-c2eb57a91476";
 constexpr char palettePatternStatus[] = "palette";
+constexpr unsigned long notificationLedDurationMs = 25;
 constexpr unsigned long commandIntervalMs = 15;
 constexpr uint8_t commandQueueSize = 16;
 
@@ -72,6 +74,7 @@ void statusCharacteristicCallback(
     size_t length,
     bool)
 {
+    Led::activateFor(notificationLedDurationMs);
     updatePalettePatternStatus(value, length);
 }
 
