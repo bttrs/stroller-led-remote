@@ -22,6 +22,8 @@ bool speedUp();
 bool speedDown();
 bool brightnessUp();
 bool brightnessDown();
+bool extra1();
+bool extra2();
 bool turnOff();
 bool toggleCarMode();
 } // namespace Bluetooth

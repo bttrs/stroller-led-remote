@@ -134,9 +134,17 @@ void onEncoderEvent(InputEventType event, EventEncoder &encoder)
 
 void onEncoderClickEvent(InputEventType event, EventButton &button)
 {
-    if (event == InputEventType::PRESSED)
+    if (event != InputEventType::PRESSED)
     {
-        Serial.printf("Rotary encoder %u clicked\n", button.getInputId() + 1);
+        return;
+    }
+
+    const size_t index = button.getInputId();
+    const Controls::Action action =
+        index == 0 ? Controls::Action::Extra1 : Controls::Action::Extra2;
+    if (queueAction(action))
+    {
+        Serial.printf("Rotary encoder %u clicked\n", index + 1);
     }
 }
 } // namespace

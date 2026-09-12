@@ -41,13 +41,16 @@ the pins low during reset or boot.
 | Button 6 | Next pattern |
 | Encoder 1 clockwise / counterclockwise | Increase / decrease speed |
 | Encoder 2 clockwise / counterclockwise | Increase / decrease brightness |
-| Encoder 1 / 2 click | Serial log only |
+| Encoder 1 click | Send `extra_1` |
+| Encoder 2 click | Send `extra_2` |
 
 The remote LED blinks while it is discovering or reconnecting to the stroller.
 When connected, it remains on while the stroller has a palette-driven pattern
 selected, otherwise it remains off. Button activity briefly lights it
-regardless of connection status; when the palette status already holds it on,
-the acknowledgement briefly turns it off instead.
+regardless of connection status. A button indication followed by its stroller
+status acknowledgement produces three 50 ms pulses with equally long gaps;
+when the palette status already holds it on, each pulse briefly turns it off
+instead.
 
 ## Layout
 

@@ -4,7 +4,7 @@
 
 namespace
 {
-constexpr unsigned long buttonPressLedDurationMs = 25;
+constexpr unsigned long buttonPressLedDurationMs = 50;
 
 void sendAction(Controls::Action action)
 {
@@ -42,6 +42,12 @@ void sendAction(Controls::Action action)
         break;
     case Controls::Action::BrightnessDown:
         Bluetooth::brightnessDown();
+        break;
+    case Controls::Action::Extra1:
+        Bluetooth::extra1();
+        break;
+    case Controls::Action::Extra2:
+        Bluetooth::extra2();
         break;
     case Controls::Action::TurnOff:
         Bluetooth::turnOff();

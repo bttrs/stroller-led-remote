@@ -6,6 +6,7 @@ namespace Led
 {
 void initialize();
 void activateFor(unsigned long durationMs);
+void acknowledge();
 void setConnectionStatus(bool connected);
 void setPalettePatternStatus(bool isPalettePatternActive);
 void update();

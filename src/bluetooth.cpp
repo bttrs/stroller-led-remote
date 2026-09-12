@@ -17,7 +17,6 @@ constexpr char statusCharacteristicUuid[] =
 constexpr char palettePatternStatus[] = "palette";
 constexpr char notPalettePatternStatus[] = "not_palette";
 constexpr char nextPatternStatusPrefix[] = "received:next_pattern:";
-constexpr unsigned long notificationLedDurationMs = 25;
 constexpr unsigned long commandIntervalMs = 15;
 constexpr uint8_t commandQueueSize = 16;
 
@@ -114,7 +113,7 @@ void statusCharacteristicCallback(
     size_t length,
     bool)
 {
-    Led::activateFor(notificationLedDurationMs);
+    Led::acknowledge();
     updatePalettePatternStatus(value, length);
 }
 
@@ -404,6 +403,16 @@ bool Bluetooth::brightnessUp()
 bool Bluetooth::brightnessDown()
 {
     return queueCommand("brightness_down");
+}
+
+bool Bluetooth::extra1()
+{
+    return queueCommand("extra_1");
+}
+
+bool Bluetooth::extra2()
+{
+    return queueCommand("extra_2");
 }
 
 bool Bluetooth::turnOff()

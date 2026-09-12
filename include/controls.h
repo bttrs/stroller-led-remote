@@ -15,6 +15,8 @@ enum class Action
     SpeedDown,
     BrightnessUp,
     BrightnessDown,
+    Extra1,
+    Extra2,
     TurnOff,
     ToggleCarMode,
 };
