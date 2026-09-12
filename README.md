@@ -52,13 +52,15 @@ regardless of connection status.
 
 - `src/main.cpp` - application setup and coordination
 - `src/controls.cpp`, `include/controls.h` - control initialization using
-  `InputEvents`, debounced button actions, and rotary speed/brightness actions
+  `InputEvents`, debounced button actions, and rotary speed/brightness actions;
+  actions are ignored while BLE is disconnected
 - `src/led.cpp`, `include/led.h` - LED timing and output behavior
 - `src/bluetooth.cpp`, `include/bluetooth.h` - BLE client that continuously
   discovers the `Led Stroller` peripheral by advertised name or command
   service, reconnects after a disconnect, and writes the stroller's commands
-  to its command characteristic. Commands entered before connection are queued
-  and sent without write responses every 15 ms.
+  to its command characteristic. Commands are accepted only while the command
+  channel is actively connected and are sent without write responses every
+  15 ms.
 - `lib/` - project-specific libraries
 - `test/` - PlatformIO tests
 

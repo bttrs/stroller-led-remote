@@ -61,11 +61,14 @@ void setup()
     Serial.println("Controls initialized");
     Led::initialize();
     Bluetooth::initialize();
+    Controls::setActionsEnabled(false);
     Serial.println("Bluetooth discovery started");
 }
 
 void loop()
 {
+    Controls::setActionsEnabled(Bluetooth::isConnected());
+
     Controls::Action action;
     while (Controls::pollAction(action))
     {

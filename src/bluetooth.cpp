@@ -37,6 +37,18 @@ uint8_t commandQueueCount = 0;
 
 void startScan();
 
+void clearCommandQueue()
+{
+    commandQueueHead = 0;
+    commandQueueTail = 0;
+    commandQueueCount = 0;
+}
+
+bool hasActiveConnection()
+{
+    return commandChannelReady && client != nullptr && client->isConnected();
+}
+
 void updatePalettePatternStatus(const uint8_t *value, size_t length)
 {
     const bool isPalettePattern =
@@ -96,6 +108,7 @@ class ClientCallbacks : public NimBLEClientCallbacks
         commandChannelReady = false;
         palettePatternActive = false;
         connectionAttemptInProgress = false;
+        clearCommandQueue();
         startScan();
     }
 } clientCallbacks;
@@ -211,6 +224,13 @@ bool commandTransmissionIsDue(unsigned long now)
 
 bool queueCommand(const char *command)
 {
+    if (!hasActiveConnection())
+    {
+        Serial.printf(
+            "Bluetooth command %s dropped: no active connection\n", command);
+        return false;
+    }
+
     if (commandQueueCount == commandQueueSize)
     {
         Serial.printf("Bluetooth command %s dropped: queue is full\n", command);
@@ -225,8 +245,13 @@ bool queueCommand(const char *command)
 
 void transmitNextCommand(unsigned long now)
 {
-    if (!commandChannelReady || commandQueueCount == 0 ||
-        !commandTransmissionIsDue(now))
+    if (!hasActiveConnection())
+    {
+        clearCommandQueue();
+        return;
+    }
+
+    if (commandQueueCount == 0 || !commandTransmissionIsDue(now))
     {
         return;
     }
@@ -264,6 +289,7 @@ void Bluetooth::update()
     {
         if (!prepareCommandChannel())
         {
+            clearCommandQueue();
             client->disconnect();
             return;
         }
@@ -274,7 +300,7 @@ void Bluetooth::update()
 
 bool Bluetooth::isConnected()
 {
-    return commandChannelReady && client != nullptr && client->isConnected();
+    return hasActiveConnection();
 }
 
 bool Bluetooth::isPalettePatternActive()

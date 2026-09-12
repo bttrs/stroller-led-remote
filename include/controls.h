@@ -21,6 +21,9 @@ enum class Action
 
 void initialize();
 
+// Enables or disables collecting actions from physical controls.
+void setActionsEnabled(bool enabled);
+
 // Returns one queued control action.
 bool pollAction(Action &action);
 } // namespace Controls

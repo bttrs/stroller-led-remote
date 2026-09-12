@@ -50,9 +50,15 @@ Controls::Action actionQueue[actionQueueSize];
 uint8_t actionQueueHead = 0;
 uint8_t actionQueueTail = 0;
 uint8_t actionQueueCount = 0;
+bool actionsEnabled = false;
 
 bool queueAction(Controls::Action action)
 {
+    if (!actionsEnabled)
+    {
+        return false;
+    }
+
     if (actionQueueCount == actionQueueSize)
     {
         Serial.println("Control action dropped: queue is full");
@@ -155,6 +161,17 @@ void Controls::initialize()
         encoderClickInputs[index].setDebounceInterval(30);
         encoderClickInputs[index].begin();
         encoderClickInputs[index].setCallback(onEncoderClickEvent);
+    }
+}
+
+void Controls::setActionsEnabled(bool enabled)
+{
+    actionsEnabled = enabled;
+    if (!enabled)
+    {
+        actionQueueHead = 0;
+        actionQueueTail = 0;
+        actionQueueCount = 0;
     }
 }
 
