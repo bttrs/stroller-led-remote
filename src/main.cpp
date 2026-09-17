@@ -19,6 +19,9 @@ void sendAction(Controls::Action action)
     case Controls::Action::HazardLights:
         Bluetooth::hazardLights();
         break;
+    case Controls::Action::Police:
+        Bluetooth::police();
+        break;
     case Controls::Action::ToggleAutoPattern:
         Bluetooth::toggleAutoPattern();
         break;

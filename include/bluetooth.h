@@ -14,6 +14,7 @@ bool isPalettePatternActive();
 bool blinkerLeft();
 bool blinkerRight();
 bool hazardLights();
+bool police();
 bool toggleAutoPattern();
 bool toggleAutoPalette();
 bool nextPattern();

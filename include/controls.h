@@ -7,6 +7,7 @@ enum class Action
     BlinkerLeft,
     BlinkerRight,
     HazardLights,
+    Police,
     ToggleAutoPattern,
     ToggleAutoPalette,
     NextPattern,

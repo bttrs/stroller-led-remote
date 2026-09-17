@@ -74,6 +74,25 @@ bool queueAction(Controls::Action action)
 void onButtonEvent(InputEventType event, EventButton &button)
 {
     const size_t index = button.getInputId();
+    if (index == 1)
+    {
+        if (event == InputEventType::LONG_CLICKED)
+        {
+            if (queueAction(Controls::Action::Police))
+            {
+                Serial.println("Button 2 long clicked");
+            }
+        }
+        else if (event == InputEventType::CLICKED)
+        {
+            if (queueAction(Controls::Action::HazardLights))
+            {
+                Serial.println("Button 2 clicked");
+            }
+        }
+        return;
+    }
+
     if (index == 3)
     {
         if (event == InputEventType::LONG_CLICKED)

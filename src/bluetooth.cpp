@@ -365,6 +365,11 @@ bool Bluetooth::hazardLights()
     return queueCommand("W");
 }
 
+bool Bluetooth::police()
+{
+    return queueCommand("police");
+}
+
 bool Bluetooth::toggleAutoPattern()
 {
     return queueCommand("auto_pattern");

@@ -34,7 +34,7 @@ the pins low during reset or boot.
 | Input | Action |
 | --- | --- |
 | Button 1 | Left blinker |
-| Button 2 | Hazard lights |
+| Button 2 click / long click | Hazard lights / Send `police` |
 | Button 3 | Right blinker |
 | Button 4 click / long click | Toggle car mode / turn LEDs off |
 | Button 5 | Next palette |
